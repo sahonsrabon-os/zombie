@@ -1,0 +1,15 @@
+{
+  "name": "zombiecoder-runtime",
+  "version": "0.48.0",
+  "private": true,
+  "description": "Evidence-first, local-first runtime scaffold for ZombieCoder",
+  "type": "module",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

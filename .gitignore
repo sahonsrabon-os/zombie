@@ -1,0 +1,31 @@
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+.cloudflared/
+cloudflared*.json
+certs/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime state and local data
+data/
+logs/
+.zombiecoder/
+*.pid
+*.sqlite*
+
+# Dependencies and generated output
+node_modules/
+coverage/
+dist/
+build/
+.cache/
+*.log
+*.zip
+
+# OS metadata
+.DS_Store
+Thumbs.db

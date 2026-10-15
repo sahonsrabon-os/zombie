@@ -185,7 +185,13 @@ This build does not expose a standalone MCP JSON-RPC server at `/mcp` (`GET /mcp
 - MCP tool call: `POST /v1/mcp/tools/call`
 - Runtime MCP config: `GET /api/config/mcp`
 
-Upstream servers must be configured with their actual URLs, for example `EXTERNAL_MCP_PUBLIC_API_URL`, `EXTERNAL_MCP_TTS_URL`, `EXTERNAL_MCP_OCR_URL`, or `EXTERNAL_MCP_FACEBOOK_ADS_URL`. Keep the MCP HTTP/private-network policy and host allowlist enabled only for the exact trusted endpoint. With those URL variables empty, this runtime has **zero registered MCP endpoints and zero discovered MCP tools**; native workspace tools are separate and work without an MCP URL.
+Upstream servers must be configured with their actual URLs, for example `EXTERNAL_MCP_PUBLIC_API_URL`, `EXTERNAL_MCP_TTS_URL`, `EXTERNAL_MCP_OCR_URL`, or `EXTERNAL_MCP_FACEBOOK_ADS_URL`. Keep the MCP HTTP/private-network policy and host allowlist enabled only for the exact trusted endpoint. With those URL variables empty and the local fallback disabled or unavailable, the runtime has **zero registered MCP endpoints and zero discovered MCP tools**; native workspace tools are separate and work without an MCP URL.
+
+### Legacy local fallback
+
+The old OCR, TTS, and screen-recorder servers can be used as a fallback without replacing the current registry. Set `LOCAL_MCP_FALLBACK_ENABLED=true`, `MCP_ALLOW_HTTP=true`, and `MCP_ALLOW_PRIVATE_NETWORK=true` in local `.env`, then start with `npm start` or `node start.js`. Ready endpoints use `http://127.0.0.1:3100` (OCR), `:3102` (TTS), and `:3101` (screen-recorder, Linux/X11 only). The fallback only binds/probes `127.0.0.1`, skips any service with an explicitly configured upstream URL, validates `initialize`/`tools/list` before registration, discovers tools through the existing registry, grants discovered fallback tools only to `local-development` when loopback no-token mode is active, and stops only child processes it spawned. Services missing dependencies or failing readiness checks are skipped and logged. The fallback is off in `.env.example` by default.
+
+Install the tool-specific local dependencies before expecting calls to work: OCR requires Tesseract (ImageMagick is additionally needed for crop/preprocessing); TTS requires the `edge-tts` executable (installable with `python -m pip install edge-tts`); screen recording requires Linux/X11, `ffmpeg`, and `xdpyinfo` and is intentionally skipped on Windows. Startup reports missing dependencies rather than registering an unusable local endpoint. No legacy Facebook Ads credential or public combined gateway is copied or auto-started.
 
 ## Verify a Deployment
 

@@ -92,6 +92,7 @@ export const config = {
     allowPrivateNetwork: env('MCP_ALLOW_PRIVATE_NETWORK', 'false') === 'true',
     allowHosts: listEnv('MCP_ALLOW_HOSTS'),
   },
+  localMcpFallbackEnabled: env('LOCAL_MCP_FALLBACK_ENABLED', 'false') === 'true',
   providerNetworkPolicy: {
     allowPlaintextHttp: env('ALLOW_PLAINTEXT_HTTP', 'false') === 'true',
     allowPrivateNetwork: env('PROVIDER_ALLOW_PRIVATE_NETWORK', 'false') === 'true',

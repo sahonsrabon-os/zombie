@@ -29,6 +29,7 @@ export class ExternalMcpRegistry {
     try { data=JSON.parse(await readFile(file,'utf8')); }
     catch { throw new Error('external_mcp_manifest_invalid_json'); }
     const list=Array.isArray(data?.servers) ? data.servers : [];
+    const fallbackById=new Map((Array.isArray(data?.localFallback)?data.localFallback:[]).filter(x=>x?.id).map(x=>[normalizeId(x.id),x]));
     return list.filter(x=>x && (x.url || x.urlEnv)).map(x=>({
       id:normalizeId(x.id ?? x.name ?? hostFromUrl(x.url)),
       name:String(x.name ?? x.id ?? hostFromUrl(x.url)),
@@ -40,6 +41,7 @@ export class ExternalMcpRegistry {
       legacyEntry:x.legacyEntry ?? null,
       purpose:x.purpose ?? null,
       allowHosts:Array.isArray(x.allowHosts)?x.allowHosts:[],
+      localFallback:x.localFallback===true ? (fallbackById.get(normalizeId(x.id ?? x.name)) ?? null) : null,
     }));
   }
   _resolveEnvUrl(definition) {
@@ -59,7 +61,11 @@ export class ExternalMcpRegistry {
     return result;
   }
   async definitions() {
-    const folder = (await this.folderDefinitions()).map(item => ({...item, url:this._resolveEnvUrl(item), configurationSource:item.url ? 'folder' : (item.urlEnv && this.env[item.urlEnv] ? 'environment' : 'unconfigured')}));
+    const folder = (await this.folderDefinitions()).map(item => {
+      const url=this._resolveEnvUrl(item);
+      const fallbackUrl=item.localFallback && url===`http://127.0.0.1:${Number(item.localFallback.port)}`;
+      return {...item,url,allowHosts:fallbackUrl?(item.localFallback.allowHosts??['127.0.0.1']):item.allowHosts,configurationSource:item.url?'folder':(item.urlEnv&&this.env[item.urlEnv]?'environment':'unconfigured')};
+    });
     const env = this.envDefinitions();
     const seen = new Map();
     const combined=[];

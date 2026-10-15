@@ -1,5 +1,36 @@
 {
   "version": "1.0.0",
+  "localFallback": [
+    {
+      "id": "ocr",
+      "script": "legacy/ocr-mcp.cjs",
+      "port": 3100,
+      "portEnv": "OCR_MCP_PORT",
+      "urlEnv": "EXTERNAL_MCP_OCR_URL",
+      "allowHosts": ["127.0.0.1"],
+      "requiresCommands": ["tesseract"]
+    },
+    {
+      "id": "screen-recorder",
+      "script": "legacy/screen-recorder-mcp.cjs",
+      "port": 3101,
+      "portEnv": "SCREEN_MCP_PORT",
+      "urlEnv": "EXTERNAL_MCP_SCREEN_RECORDER_URL",
+      "allowHosts": ["127.0.0.1"],
+      "platforms": ["linux"],
+      "requiresDisplay": true,
+      "requiresCommands": ["ffmpeg", "xdpyinfo"]
+    },
+    {
+      "id": "tts",
+      "script": "legacy/tts-mcp.cjs",
+      "port": 3102,
+      "portEnv": "TTS_MCP_PORT",
+      "urlEnv": "EXTERNAL_MCP_TTS_URL",
+      "allowHosts": ["127.0.0.1"],
+      "requiresCommands": ["edge-tts"]
+    }
+  ],
   "servers": [
     {
       "id": "public-api",
@@ -17,6 +48,7 @@
       "urlEnv": "EXTERNAL_MCP_TTS_URL",
       "legacyEntry": "external mcp/tts-mcp.js",
       "enabled": true,
+      "localFallback": true,
       "purpose": "Text-to-speech output capability"
     },
     {
@@ -26,6 +58,7 @@
       "urlEnv": "EXTERNAL_MCP_OCR_URL",
       "legacyEntry": "external mcp/ocr-mcp.js",
       "enabled": true,
+      "localFallback": true,
       "purpose": "Image/document text extraction"
     },
     {
@@ -36,6 +69,16 @@
       "legacyEntry": "external mcp/facebook-ads-mcp.js",
       "enabled": true,
       "purpose": "Ecommerce advertising/marketing data"
+    },
+    {
+      "id": "screen-recorder",
+      "name": "Screen Recorder MCP",
+      "transport": "http",
+      "urlEnv": "EXTERNAL_MCP_SCREEN_RECORDER_URL",
+      "legacyEntry": "external mcp/screen-recorder-mcp.js",
+      "enabled": true,
+      "localFallback": true,
+      "purpose": "Local X11 screen capture and recording"
     }
   ]
 }

@@ -60,6 +60,7 @@ import { ToolPolicy } from './tools/policy.js';
 import { sanitizeSessionMetadata } from './session/metadata.js';
 import { ExecutionLifecycle } from './execution/lifecycle.js';
 import { bootstrapProviders } from './startup/provider-bootstrap.js';
+import { startLocalMcpFallback } from './startup/local-mcp-fallback.js';
 import { buildBoundedContext } from './context/context-budget.js';
 import { compileContext } from './context/compiler.js';
 import { CapabilityConfigResolver } from './registry/config-resolver.js';
@@ -99,6 +100,7 @@ await logger.info('runtime.env_loaded', {path:envLoadResult.path,loaded:envLoadR
 const store = await createStore(config);
 const mcp = new McpRegistry(store, {networkPolicy:config.mcpNetworkPolicy});
 const externalMcp = new ExternalMcpRegistry({store, mcpRegistry:mcp, root:path.resolve('external-mcp'), logger});
+const localMcpFallback = await startLocalMcpFallback({root:process.cwd(),env:process.env,logger,enabled:config.localMcpFallbackEnabled,existingEndpoints:await mcp.list()});
 const providers = new ProviderRegistry(store, config);
 const providerBootstrap = await bootstrapProviders({ registry: providers, config, logger });
 const externalMcpBootstrap = await externalMcp.sync();
@@ -121,6 +123,25 @@ const agentsRegistry = new AgentRegistry(store);
 const transportsRegistry = new TransportRegistry(store);
 const extensionResolver = new ExtensionResolver({agents: agentsRegistry, skills: skillsRegistry, tools: toolsRegistry, transports: transportsRegistry});
 const permissions = new McpPermissions(store);
+for (const fallback of localMcpFallback.results.filter(item=>item.status==='ready')) {
+  try {
+    const endpoint=(await mcp.list()).find(item=>item.id===fallback.id);
+    if (!endpoint) continue;
+    if (endpoint.url!==fallback.url) {
+      await logger.warn('local_mcp_fallback.identity_conflict',{endpointId:fallback.id});
+      continue;
+    }
+    const discovered=endpoint.tools?.length ? endpoint : await mcp.discover(endpoint.id);
+    if (localAuthBypassActive) {
+      for (const tool of discovered.tools ?? []) {
+        await permissions.grant({applicationId:'local-development',qualifiedName:tool.qualifiedName});
+      }
+    }
+    await logger.info('local_mcp_fallback.discovered',{endpointId:endpoint.id,toolCount:discovered.tools?.length??0,localPermissionsGranted:localAuthBypassActive});
+  } catch (error) {
+    await logger.warn('local_mcp_fallback.discovery_failed',{endpointId:fallback.id,code:String(error?.code??error?.message??'mcp_discovery_failed')});
+  }
+}
 const mcpAudit = new McpAudit(store);
 const connections = new McpConnections(store, {leaseMs:Number(process.env.MCP_CONNECTION_LEASE_MS ?? 300000)});
 const reconciliation = new McpReconciliation(mcpAudit, {graceMs:Number(process.env.MCP_RECONCILIATION_GRACE_MS ?? 30000)});
@@ -1073,7 +1094,7 @@ const requestHandler = async (req,res) => {
 };
 
 const transportServers = await startTransportServers({handler:requestHandler, config, logger, runtimeIdentity});
-await logger.info('runtime.started', {version:RUNTIME_VERSION,phase:RUNTIME_PHASE,nodeVersion:process.versions.node,host:config.host,port:config.port,runtimeId:runtimeIdentity.runtimeId,instanceId:runtimeIdentity.instanceId,executionMode:config.executionMode,authMode:localAuthBypassActive?'local-no-token':'token-required',adminAuthConfigured:Boolean(config.adminToken),providerCount:(await providers.list()).length,providers:(await providers.list()).map(p=>({id:p.id,enabled:p.enabled!==false,priority:p.priority,modelCount:Array.isArray(p.models)?p.models.length:0,defaultModel:p.defaultModel||null})),transports:Object.fromEntries(Object.entries(transportServers).map(([key,server])=>[key,Boolean(server)])),sse:'http-response-mode'});
+await logger.info('runtime.started', {version:RUNTIME_VERSION,phase:RUNTIME_PHASE,nodeVersion:process.versions.node,host:config.host,port:config.port,runtimeId:runtimeIdentity.runtimeId,instanceId:runtimeIdentity.instanceId,executionMode:config.executionMode,authMode:localAuthBypassActive?'local-no-token':'token-required',adminAuthConfigured:Boolean(config.adminToken),providerCount:(await providers.list()).length,providers:(await providers.list()).map(p=>({id:p.id,enabled:p.enabled!==false,priority:p.priority,modelCount:Array.isArray(p.models)?p.models.length:0,defaultModel:p.defaultModel||null})),localMcpFallback:localMcpFallback.results,transports:Object.fromEntries(Object.entries(transportServers).map(([key,server])=>[key,Boolean(server)])),sse:'http-response-mode'});
 
-process.on('SIGINT', async () => { await stopTransportServers(transportServers); await releaseRuntimeLock(); process.exit(0); });
-process.on('SIGTERM', async () => { await stopTransportServers(transportServers); await releaseRuntimeLock(); process.exit(0); });
+process.on('SIGINT', async () => { await stopTransportServers(transportServers); await localMcpFallback.stop(); await releaseRuntimeLock(); process.exit(0); });
+process.on('SIGTERM', async () => { await stopTransportServers(transportServers); await localMcpFallback.stop(); await releaseRuntimeLock(); process.exit(0); });

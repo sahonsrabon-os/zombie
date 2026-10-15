@@ -35,12 +35,7 @@ node --version
 Copy-Item .env.example .env
 ```
 
-Edit `.env` before starting:
-
-1. Replace `ADMIN_TOKEN` with a long random secret. Do not leave the example placeholder in a reachable deployment.
-2. Keep `HOST=127.0.0.1` for local use and keep `LOCAL_AUTH_BYPASS=false`.
-3. Keep `ZOMBIECODER_EXECUTION_MODE=chat-only` for the initial boot.
-4. If using Ollama, follow [Configure Ollama](#configure-ollama).
+Edit `.env` before starting. For normal authenticated operation, set a long random `ADMIN_TOKEN` and keep `LOCAL_AUTH_BYPASS=false`. For a direct local development session only, leave `ADMIN_TOKEN` empty and set `LOCAL_AUTH_BYPASS=true`; retain `HOST=127.0.0.1`. The runtime rejects this bypass for requests carrying Cloudflare or forwarded-proxy headers. It is not a public-access setting. Start in `chat-only` until you finish the verification steps. If using Ollama, follow [Configure Ollama](#configure-ollama).
 
 You can generate a URL-safe token in PowerShell and paste its output into `.env`:
 
@@ -86,7 +81,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Edit `.env`: set a strong `ADMIN_TOKEN`, retain `HOST=127.0.0.1`, leave `LOCAL_AUTH_BYPASS=false`, and start with `ZOMBIECODER_EXECUTION_MODE=chat-only`. Configure a provider before making chat requests.
+Edit `.env`: for authenticated operation, set a strong `ADMIN_TOKEN` and leave `LOCAL_AUTH_BYPASS=false`. A direct local development setup may instead leave the token empty and set `LOCAL_AUTH_BYPASS=true`; retain `HOST=127.0.0.1`. Forwarded and Cloudflare requests are denied by this bypass. Start with `ZOMBIECODER_EXECUTION_MODE=chat-only` and configure a provider before making chat requests.
 
 ```bash
 npm test
@@ -164,18 +159,33 @@ On Windows, use `curl.exe` (PowerShell's `curl` name may resolve to `Invoke-WebR
 
 The admin UI is available at `http://127.0.0.1:3000/admin`. The unauthenticated `/health` response is for service health only; it is not proof that chat or tools work.
 
+For direct local development without API keys, set `ADMIN_TOKEN=` and `LOCAL_AUTH_BYPASS=true` in `.env`, then restart. Requests must be direct loopback requests with a loopback `Host`; requests carrying Cloudflare/forwarded-proxy headers are rejected. The local identity is `local-development`. Never combine this mode with a publicly reachable listener or disable the proxy-header guard.
+
 ## Tool Execution
 
-Execution is disabled by default. First verify health, provider inference, and streaming. Then run the harmless tool-call integration test and review the tool permissions and project-root boundaries. Only after those checks should you set:
+Execution is disabled by default. First verify health, provider inference, and streaming. Then run the harmless tool-call integration test and review the tool permissions and project-root boundaries. After those checks, `ZOMBIECODER_EXECUTION_MODE=tools-enabled` activates the execution routes. To allow all implemented native tools in a local development environment, set:
 
 ```dotenv
 ZOMBIECODER_EXECUTION_MODE=tools-enabled
-ZOMBIECODER_TOOLS=read_file,list_directory,grep_search,file_search
+ZOMBIECODER_TOOLS=runtime_echo,read_file,write_file,list_directory,create_file,edit_file,apply_diff,delete_file,list_dir,read_directory,grep_search,regex_search,file_search,find_files,view_symbol,code_graph,run_terminal_command,execute_bash,kill_process,undo,revert_file,git_diff,git_status,task_planner,todo_manager
 ```
 
-Add write-capable tools such as `create_file`, `edit_file`, or `apply_diff` only when needed. `run_terminal_command` accepts an argument array and has its own executable/subcommand allowlist; it does not provide an unrestricted shell. Do not enable delete, undo, or revert tools globally unless the deployment specifically requires them.
+The built-in tools still enforce task policy, project-root boundaries, tool-specific arguments, explicit consent for risky operations, and an executable/subcommand allowlist for terminal commands. `run_terminal_command` does not provide an unrestricted shell. `web_search`, `fetch_web_page`, and `delegate_subagent` are not implemented; legacy external MCP tool entries are not runnable without configured MCP endpoints.
 
 Three separate checks still apply: the runtime mode and global allowlist, an application-specific tool permission, and request consent for risky operations. A model-generated tool request is not permission by itself. Tool paths are bounded to the project root; a model answer or successful tool return is not automatically verified evidence.
+
+In local no-token mode, the synthetic application ID is `local-development`; grant native tool permissions to that identity through the localhost-only admin API if the tool policy denies a call. Do not treat this shortcut as suitable for public clients.
+
+## MCP Endpoints
+
+This build does not expose a standalone MCP JSON-RPC server at `/mcp` (`GET /mcp` returns 404). It acts as an MCP client for configured upstream servers and exposes runtime REST routes:
+
+- MCP tool catalog: `GET /v1/admin/mcp/tools`
+- Upstream endpoint registry: `GET /v1/admin/mcp/endpoints`
+- MCP tool call: `POST /v1/mcp/tools/call`
+- Runtime MCP config: `GET /api/config/mcp`
+
+Upstream servers must be configured with their actual URLs, for example `EXTERNAL_MCP_PUBLIC_API_URL`, `EXTERNAL_MCP_TTS_URL`, `EXTERNAL_MCP_OCR_URL`, or `EXTERNAL_MCP_FACEBOOK_ADS_URL`. Keep the MCP HTTP/private-network policy and host allowlist enabled only for the exact trusted endpoint. With those URL variables empty, this runtime has **zero registered MCP endpoints and zero discovered MCP tools**; native workspace tools are separate and work without an MCP URL.
 
 ## Verify a Deployment
 

@@ -75,6 +75,14 @@ function isLoopbackAddress(address='') {
   const value=String(address).toLowerCase().replace(/^::ffff:/,'');
   return value==='127.0.0.1' || value==='::1' || value==='localhost';
 }
+function isLocalDevelopmentRequest(req) {
+  if (!isLoopbackAddress(req.socket?.remoteAddress)) return false;
+  let hostname;
+  try { hostname = new URL(`http://${req.headers.host ?? ''}`).hostname.toLowerCase(); } catch { return false; }
+  if (!['127.0.0.1','localhost','[::1]','::1'].includes(hostname)) return false;
+  const proxyHeaders=['forwarded','x-forwarded-for','x-forwarded-host','x-forwarded-proto','x-real-ip','cf-connecting-ip','cf-ray','true-client-ip','cdn-loop'];
+  return !proxyHeaders.some(name => req.headers[name] !== undefined);
+}
 const localAuthBypassActive = config.localAuthBypass && !config.adminToken && ['127.0.0.1','localhost','::1'].includes(config.host);
 if (config.localAuthBypass && !localAuthBypassActive) throw new Error('local_auth_bypass_requires_empty_admin_token_and_loopback_bind');
 
@@ -151,10 +159,10 @@ async function routeForAgent(input = {}, agentId = input.agent ?? input.persona 
   return route;
 }
 const execution = new ExecutionOrchestrator({extensionResolver, executor:executionAdapter});
-const adminOk = (req) => isAdminAuthorized(bearer(req), config.adminToken) || (localAuthBypassActive && isLoopbackAddress(req.socket?.remoteAddress));
+const adminOk = (req) => isAdminAuthorized(bearer(req), config.adminToken) || (localAuthBypassActive && isLocalDevelopmentRequest(req));
 const applications = async () => store.read('applications', []);
 async function authenticateRequest(req, requestLog, requestState) {
-  const app = localAuthBypassActive && isLoopbackAddress(req.socket?.remoteAddress)
+  const app = localAuthBypassActive && isLocalDevelopmentRequest(req)
     ? {id:'local-development',name:'Local Development Session',status:'active',localDevelopment:true}
     : authenticateApiKey(bearer(req), await applications());
   if (!app) {
@@ -269,7 +277,7 @@ const requestHandler = async (req,res) => {
     }
     if (req.method==='GET' && url.pathname==='/api/config/mcp') {
       const publicUrl=`${req.headers['x-forwarded-proto']||'http'}://${req.headers.host||`localhost:${config.port}`}`;
-      return send(res,200,{name:'ZombieCoder Runtime',transport:{type:'http',url:`${publicUrl}/mcp`},endpoints:{http:publicUrl,connect:null},tools:(await mcp.tools()).map(t=>t.qualifiedName),timeout:300000});
+      return send(res,200,{name:'ZombieCoder Runtime',transport:{type:'runtime-rest',url:`${publicUrl}/v1/mcp/tools/call`},endpoints:{http:publicUrl,mcpServer:null,toolCatalog:`${publicUrl}/v1/admin/mcp/tools`,toolCall:`${publicUrl}/v1/mcp/tools/call`,endpointRegistry:`${publicUrl}/v1/admin/mcp/endpoints`},mcpServerAvailable:false,tools:(await mcp.tools()).map(t=>t.qualifiedName),timeout:300000});
     }
     if (req.method==='GET' && url.pathname==='/api/mcp-clients') {
       return send(res,200,{domain:req.headers.host||'localhost',serverType:'runtime',version:RUNTIME_VERSION,total_requests:null,active_connections:null,connected_clients:await connections.list(),tools:(await mcp.tools()).length,server_url:`${req.headers['x-forwarded-proto']||'http'}://${req.headers.host||`localhost:${config.port}`}/mcp`,protocol:'JSON-RPC 2.0',protocol_version:'2025-06-18'});

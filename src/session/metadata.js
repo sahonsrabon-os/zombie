@@ -1,4 +1,4 @@
-const ALLOWED = new Set(['sessionSource','clientId','editor','editorVersion','clientVersion','osPlatform','deviceInfo','executionState','systemPromptDigest','systemPromptBytes','lastProvider','lastModel','fallbackAttempt','fallbackRemaining','verificationState','lastResponseId']);
+const ALLOWED = new Set(['sessionSource','clientId','editor','editorVersion','clientVersion','osPlatform','deviceInfo','projectRoot','executionState','systemPromptDigest','systemPromptBytes','lastProvider','lastModel','fallbackAttempt','fallbackRemaining','verificationState','lastResponseId']);
 const MAX = 256;
 
 export function sanitizeSessionMetadata(input = {}) {
@@ -9,7 +9,7 @@ export function sanitizeSessionMetadata(input = {}) {
     if (value == null) continue;
     const text = String(value).trim();
     if (!text) continue;
-    out[key] = text.slice(0, MAX);
+    out[key] = text.slice(0, key==='projectRoot'?4096:MAX);
   }
   return out;
 }

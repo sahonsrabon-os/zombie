@@ -4,7 +4,7 @@ const textOf = value => value == null ? '' : typeof value === 'string' ? value :
 
 function score(entry, query) {
   const text = textOf(entry?.content ?? entry?.message ?? entry).toLowerCase();
-  const words = String(query ?? '').toLowerCase().split(/[^a-z0-9_\-]+/).filter(w => w.length > 2).slice(0, 32);
+  const words = String(query ?? '').normalize('NFKC').toLowerCase().split(/[^\p{L}\p{N}_\-]+/u).filter(w => [...w].length > 1).slice(0, 32);
   return words.reduce((n, w) => n + (text.includes(w) ? 1 : 0), 0);
 }
 

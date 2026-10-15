@@ -5,6 +5,7 @@ import { maskCanonicalResponse, createAgentProviderIdentity } from '../src/provi
 import { parseCanonicalToolCalls, stripUnsupportedTools } from '../src/tools/parser.js';
 import { ProviderExecutionAdapter } from '../src/execution/provider-adapter.js';
 import { EvidenceGate } from '../src/evidence/gate.js';
+import { parseZombieCoderModels } from '../src/providers/masking/zombie-models.js';
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -25,6 +26,19 @@ test('phase22 smart router selects by capability then priority', async () => {
   const route=await router.route({model:'m',tools:[{type:'function',function:{name:'x'}}]});
   assert.equal(route.providerId,'fast');
   assert.deepEqual(route.requiredCapabilities,['function-calling','chat-completions']);
+});
+
+test('phase22 environment-defined model aliases route to an exact provider model without removing legacy ids', async()=>{
+  const models=parseZombieCoderModels(JSON.stringify([{id:'study-model',name:'Study Model',providerId:'configured',model:'provider-model'}]));
+  assert.deepEqual(models.map(model=>model.id),['zombie-mini','zombie-lite','zombie-classic','study-model']);
+  const router=new SmartRouter({providers:{list:async()=>[
+    {id:'other',enabled:true,priority:1,defaultModel:'other-model',models:['other-model'],capabilities:['chat-completions']},
+    {id:'configured',enabled:true,priority:5,defaultModel:'fallback-model',models:['provider-model','fallback-model'],capabilities:['chat-completions']}
+  ]},models});
+  const route=await router.route({model:'study-model'});
+  assert.equal(route.providerId,'configured');
+  assert.equal(route.model,'provider-model');
+  assert.equal(route.publicModel,'study-model');
 });
 
 test('phase22 provider fallback tries the next eligible provider after failure', async () => {

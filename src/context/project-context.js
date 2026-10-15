@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile, realpath, stat } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
@@ -21,6 +21,12 @@ export class ProjectContextStore {
       return actual;
     }
     return r;
+  }
+  async addAllowedRoot(inputRoot) {
+    const actual=await realpath(path.resolve(String(inputRoot??'')));
+    if(!(await stat(actual)).isDirectory())throw new Error('project_root_not_directory');
+    if(this.allowedRoots){this.allowedRoots=[...new Set([...this.allowedRoots,actual])];}
+    return actual;
   }
   async assertAllowedRoot(inputRoot) { return this.root(inputRoot); }
   ssotPath(root) { return path.join(this.root(root), '.zombiecoder', 'SSOT.md'); }

@@ -15,7 +15,8 @@ export function legacyModelList({agents=[], providers=[]}={}) {
     const models = Array.isArray(provider.models) ? provider.models : [];
     const aliases = provider.modelAliases && typeof provider.modelAliases === 'object' ? provider.modelAliases : {};
     const hasTarget = ZOMBIECODER_MODELS.some(model => {
-      const target = aliases[model.id] ?? aliases[model.id.replaceAll('-', '_')] ?? provider.defaultModel ?? models[0] ?? '';
+      if(model.providerId&&model.providerId!==provider.id)return false;
+      const target = model.model ?? aliases[model.id] ?? aliases[model.id.replaceAll('-', '_')] ?? provider.defaultModel ?? models[0] ?? '';
       return Boolean(target && !/^REPLACE_WITH_/i.test(String(target)) && (!models.length || models.includes(target) || Boolean(aliases[model.id]) || Boolean(aliases[model.id.replaceAll('-', '_')]) || Boolean(provider.defaultModel)));
     });
     return hasTarget;

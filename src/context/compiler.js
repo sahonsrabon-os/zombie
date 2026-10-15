@@ -4,13 +4,14 @@ const DEFAULT_MAX_BYTES = 192 * 1024;
 const DEFAULT_RECENT = 10;
 const DEFAULT_SYLLABUS_ENTRIES = 6;
 const DEFAULT_MEMORY_ENTRIES = 8;
+const DEFAULT_ARCHIVE_MESSAGES = 6;
 const MAX_SECTION_CHARS = 6000;
 
 const textOf = value => value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value);
-const normalize = value => String(value ?? '').toLowerCase();
+const normalize = value => String(value ?? '').normalize('NFKC').toLowerCase();
 
 function words(query) {
-  return normalize(query).split(/[^a-z0-9_\-./]+/).filter(x => x.length > 2).slice(0, 48);
+  return normalize(query).split(/[^\p{L}\p{N}_\-./]+/u).filter(x => [...x].length > 1).slice(0, 48);
 }
 
 function scoreText(text, queryWords) {
@@ -93,12 +94,23 @@ function selectMemory(entries, query, limit = DEFAULT_MEMORY_ENTRIES) {
     .map(x => x.entry);
 }
 
+function selectArchive(messages,query,limit=DEFAULT_ARCHIVE_MESSAGES){
+  const list=Array.isArray(messages)?messages:[];
+  const queryWords=words(query);
+  return list.map((message,index)=>({message,index,score:scoreText(`${message?.role??''}\n${textOf(message?.content??message)}`,queryWords)}))
+    .filter(item=>item.score>0)
+    .sort((a,b)=>b.score-a.score||b.index-a.index)
+    .slice(0,limit)
+    .map(item=>({role:String(item.message?.role??'unknown').slice(0,32),content:textOf(item.message?.content??'').slice(0,3000)}));
+}
+
 function truncateToBytes(value, maxBytes) {
   let text = JSON.stringify(value);
   if (Buffer.byteLength(text) <= maxBytes) return value;
   const clone = structuredClone(value);
   while (Buffer.byteLength(JSON.stringify(clone)) > maxBytes) {
-    if (clone.syllabus?.length) clone.syllabus.pop();
+    if (clone.archive?.length) clone.archive.pop();
+    else if (clone.syllabus?.length) clone.syllabus.pop();
     else if (clone.memory?.length) clone.memory.pop();
     else if (clone.ssot?.sections?.length) clone.ssot.sections.pop();
     else if (clone.recent?.length > 1) clone.recent.shift();
@@ -110,7 +122,7 @@ function truncateToBytes(value, maxBytes) {
 }
 
 export function compileContext({
-  goal = '', userInput = '', recent = [], memory = [], ssot = null, syllabus = null,
+  goal = '', userInput = '', recent = [], archive = [], memory = [], ssot = null, syllabus = null,
   projectRoot = null, workingDirectory = null, sessionId = null, taskPolicy = null, evidence = [],
   maxBytes = DEFAULT_MAX_BYTES, recentLimit = DEFAULT_RECENT
 } = {}) {
@@ -131,6 +143,7 @@ export function compileContext({
     },
     syllabus: selectSyllabus(syllabusText, query),
     memory: selectMemory(memory, query),
+    archive: selectArchive(archive,query),
     recent: compactMessages(recent, recentLimit),
     evidence: (Array.isArray(evidence) ? evidence : []).slice(-8).map(item => ({
       source: String(item?.source ?? '').slice(0, 256),
@@ -152,7 +165,7 @@ export function compileContext({
 export function validateCompiledContext(value) {
   if (!value || typeof value !== 'object') throw new Error('compiled_context_invalid');
   if (value.schemaVersion !== '1.0' || value.strategy !== 'purpose-first-context-compiler') throw new Error('compiled_context_schema_invalid');
-  if (!value.facts || !Array.isArray(value.recent) || !Array.isArray(value.evidence) || !Array.isArray(value.syllabus) || !Array.isArray(value.memory)) throw new Error('compiled_context_shape_invalid');
+  if (!value.facts || !Array.isArray(value.recent) || !Array.isArray(value.archive) || !Array.isArray(value.evidence) || !Array.isArray(value.syllabus) || !Array.isArray(value.memory)) throw new Error('compiled_context_shape_invalid');
   if (!value.ssot || !Array.isArray(value.ssot.sections)) throw new Error('compiled_context_ssot_invalid');
   if (value.facts.projectRoot && value.facts.workingDirectory) { const root = path.resolve(String(value.facts.projectRoot)); const cwd = path.resolve(String(value.facts.workingDirectory)); if (!(cwd === root || cwd.startsWith(`${root}${path.sep}`))) throw new Error('compiled_context_working_directory_outside_project'); }
   return true;

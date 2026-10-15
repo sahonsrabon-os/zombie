@@ -8,7 +8,7 @@ export class OllamaProvider {
     if (mode === 'openai-compatible') this.compat = new OpenAIFamilyProvider({id,name:this.name,baseUrl:this.baseUrl,apiKey,defaultModel,networkPolicy});
   }
   async listModels() { if (this.mode === 'native') return requestJson(`${this.baseUrl}/api/tags`, 'GET', undefined, authHeaders(this.apiKey), 30000, this.networkPolicy); return this.compat.listModels(); }
-  async chatCompletions(input={}) { if (this.mode === 'native') return requestJson(`${this.baseUrl}/api/chat`, 'POST', {...input, model:input.model ?? this.defaultModel, stream:false}, authHeaders(this.apiKey), input.timeoutMs ?? 30000, this.networkPolicy); return this.compat.chatCompletions(input); }
+  async chatCompletions(input={}) { if (this.mode === 'native') {const payload={...input,model:input.model??this.defaultModel,stream:false};delete payload.timeoutMs;return requestJson(`${this.baseUrl}/api/chat`, 'POST', payload, authHeaders(this.apiKey), Math.max(1000,Math.min(600000,Number(input.timeoutMs)||Number(this.networkPolicy.requestTimeoutMs)||30000)), this.networkPolicy);} return this.compat.chatCompletions(input); }
   toCanonical(raw) { if (this.mode !== 'native') return raw; return {id:raw.id ?? `ollama_${Date.now()}`, object:'chat.completion', model:raw.model ?? this.defaultModel, choices:[{index:0,message:raw.message ?? {role:'assistant',content:''},finish_reason:raw.done_reason ?? null}], usage: raw.prompt_eval_count || raw.eval_count ? {prompt_tokens:raw.prompt_eval_count ?? 0, completion_tokens:raw.eval_count ?? 0, total_tokens:(raw.prompt_eval_count ?? 0)+(raw.eval_count ?? 0)} : undefined}; }
   streamChunk(raw) {
     if (this.mode !== 'native') return raw;
@@ -20,5 +20,5 @@ export class OllamaProvider {
     }));
     return {id:raw.id ?? `ollama_${Date.now()}`,object:'chat.completion.chunk',model:raw.model ?? this.defaultModel,choices:[{index:0,delta:{role:raw.message?.role,content:raw.message?.content ?? '',...(toolCalls.length ? {tool_calls:toolCalls}:{})},finish_reason:raw.done ? (raw.done_reason ?? 'stop') : null}]};
   }
-  async streamChat(input={}, onChunk) { if (this.mode === 'native') return requestLineStream(`${this.baseUrl}/api/chat`, {...input, model:input.model ?? this.defaultModel, stream:true}, authHeaders(this.apiKey), {onEvent:onChunk, networkPolicy:this.networkPolicy}); return this.compat.streamChat(input,onChunk); }
+  async streamChat(input={}, onChunk) { if (this.mode === 'native') {const payload={...input,model:input.model??this.defaultModel,stream:true};delete payload.timeoutMs;return requestLineStream(`${this.baseUrl}/api/chat`, payload, authHeaders(this.apiKey), {timeoutMs:Math.max(1000,Math.min(600000,Number(input.timeoutMs)||Number(this.networkPolicy.requestTimeoutMs)||30000)),onEvent:onChunk, networkPolicy:this.networkPolicy});} return this.compat.streamChat(input,onChunk); }
 }

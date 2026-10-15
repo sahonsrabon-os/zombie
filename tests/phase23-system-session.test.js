@@ -41,6 +41,13 @@ test('phase23 system message is a provider-neutral system role', () => {
   assert.match(message.content,/Inspect bug/);
 });
 
+test('phase23 evidence-driven language and specialist rules are bound to current agent identities',()=>{
+  const prompt=buildAgentSystemPrompt({agent:{id:'bug-hunter',name:'Bug Hunter',role:'debugging'},persona:{name:'Bug Hunter',role:'debugging',persona:'Reproduce before fixing.'},goal:'বাংলায় bug খুঁজে বের করো'});
+  assert.match(prompt,/Respond in the language used by the user/);
+  assert.match(prompt,/আজ কী শিখলাম/);
+  assert.match(prompt,/Jarin — Principal Debug and Root-Cause Engineer/);
+});
+
 test('phase23 session metadata is application-owned and safely mergeable', async () => {
   const store=new MemoryStore();
   const sessions=new SessionService(store);

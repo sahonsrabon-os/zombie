@@ -18,6 +18,7 @@ const TABLES = {
   sessions: 'sessions',
   'session-messages': 'session_messages',
   'tool-permissions': 'tool_permissions',
+  'workspace-roots': 'workspace_roots',
 };
 
 export class SqliteStore {
@@ -43,6 +44,7 @@ export class SqliteStore {
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS session_messages (id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS tool_permissions (id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS workspace_roots (id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_session_messages_session_created ON session_messages(json_extract(data,'$.sessionId'), created_at);
       CREATE INDEX IF NOT EXISTS idx_mcp_audit_created_at ON mcp_audit(created_at);
       CREATE INDEX IF NOT EXISTS idx_mcp_connections_session ON mcp_connections(json_extract(data,'$.sessionId'));

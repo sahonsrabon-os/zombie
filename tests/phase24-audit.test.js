@@ -14,7 +14,7 @@ test('phase24 route map is explicit and matches the current inventory', () => {
   const report = routeMapReport();
   assert.equal(report.legacyConcreteRoutes, 31);
   assert.equal(report.currentConcreteRoutes, CURRENT_ROUTE_COUNT);
-  assert.equal(report.currentConcreteRoutes, 86);
+  assert.equal(report.currentConcreteRoutes, 93);
   assert.equal(report.currentHandlerBlocks, 100);
   assert.equal(report.notes.length, 5);
 });

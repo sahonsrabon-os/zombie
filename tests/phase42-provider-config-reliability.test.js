@@ -5,6 +5,7 @@ import { SmartRouter } from '../src/providers/router/smart-router.js';
 import { assertSafeOutboundUrl } from '../src/network/outbound-policy.js';
 import { ProviderRegistry } from '../src/providers/registry.js';
 import { GeminiProvider } from '../src/providers/adapters/gemini.js';
+import { OpenAIFamilyProvider } from '../src/providers/adapters/openai-family.js';
 import { SqliteStore } from '../src/storage/sqlite-store.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -74,6 +75,18 @@ test('phase42 local-host exception does not disable global allowHosts enforcemen
     () => assertSafeOutboundUrl('https://example.com/v1/models', {allowHosts:['other.example']}),
     /outbound_host_not_allowlisted/
   );
+});
+
+test('phase42 provider request timeout is configurable and not forwarded to upstream JSON',async()=>{
+  let requestBody;
+  const server=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;requestBody=JSON.parse(raw);setTimeout(()=>{if(!res.destroyed){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({choices:[{message:{role:'assistant',content:'late'}}]}));}},1300)});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const provider=new OpenAIFamilyProvider({id:'timeout-fixture',baseUrl:`http://127.0.0.1:${server.address().port}/v1`,defaultModel:'model',networkPolicy:{allowPlaintextHttp:true,allowPrivateNetwork:true,allowPrivateHosts:['127.0.0.1'],allowHosts:[],requestTimeoutMs:1000}});
+    await assert.rejects(()=>provider.chatCompletions({model:'model',timeoutMs:1000,messages:[{role:'user',content:'hello'}]}),/provider_timeout/);
+    assert.equal(requestBody.model,'model');
+    assert.equal('timeoutMs' in requestBody,false);
+  }finally{await new Promise(resolve=>server.close(resolve));}
 });
 
 test('phase42 Gemini adapter sends native generateContent request and canonicalizes the real HTTP response shape', async () => {

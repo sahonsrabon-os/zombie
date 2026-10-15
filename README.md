@@ -13,6 +13,7 @@ ZombieCoder is a local-first, provider-neutral AI runtime. It exposes an OpenAI-
 - Optional native tools for workspace reading/search, scoped file changes, Git status/diff, and allowlisted command execution.
 - Optional MCP integrations, with separate permissions and outbound network policy.
 - Admin UI at `/admin` and authenticated admin APIs for providers, models, agents, applications, and tool permissions.
+- A portable, dependency-free runtime build (`npm run build`) that excludes `.env`, databases, logs, tests, and source-worktree state.
 - HTTP by default; HTTPS and Unix-domain socket transports are optional.
 
 Some capabilities are intentionally not implemented: built-in web search, general webpage fetching, and sub-agent delegation. See [Add New Tool Contract](docs/ADD-NEW-TOOL.md) before adding tools.
@@ -54,6 +55,8 @@ Run tests and start the runtime:
 npm test
 npm start
 ```
+
+To create a portable runtime copy, run `npm run build`. The default output is `dist/zombiecoder-runtime`; copy `.env.example` to `.env` inside that package and configure it there. Each package uses its own relative `data/` and `logs/` directories, so separate installations do not share SQLite state or runtime caches. The build refuses to overwrite an unmanaged output directory.
 
 Alternatively, use the Windows preflight launcher:
 
@@ -125,6 +128,10 @@ These switches are for a local HTTP Ollama endpoint. The provider host allowlist
 
 For cloud providers, set the matching `PROVIDER_KEY_<ID>` variable and configure the provider endpoint/model in `PROVIDER_CONFIG_JSON`. Keep unused providers disabled. Never put real keys in `.env.example`, source code, screenshots, or README examples.
 
+The local Ollama OpenAI-compatible base URL is `http://127.0.0.1:11434/v1`; the adapter calls `/models` and `/chat/completions` beneath it. Native Ollama uses `http://127.0.0.1:11434` and `/api/*`. Keep local host allowlisting enabled. `PROVIDER_REQUEST_TIMEOUT_MS` defaults to 180000 ms (maximum 600000) to allow cold/slow local inference; restart after changing it.
+
+Public client model IDs keep the built-in `zombie-mini`, `zombie-lite`, and `zombie-classic` names. Add or override aliases with `ZOMBIECODER_MODELS_JSON` without source edits; optional paired `providerId` and `model` fields force a configured target. Agent IDs remain in the separate `agent`/`persona` fields.
+
 ## Authentication and Chat API
 
 Admin routes require `Authorization: Bearer <ADMIN_TOKEN>`. Client chat requests require an application API key; create one through the admin API and store the returned key securely. Do not use the admin token as a client key.
@@ -178,14 +185,30 @@ In local no-token mode, the synthetic application ID is `local-development`; gra
 
 ## MCP Endpoints
 
-This build does not expose a standalone MCP JSON-RPC server at `/mcp` (`GET /mcp` returns 404). It acts as an MCP client for configured upstream servers and exposes runtime REST routes:
+The runtime exposes an authenticated, stateless Streamable HTTP MCP gateway at `POST /mcp`; `POST /v1/mcp` is a compatibility alias. `GET /mcp` preserves the older tool-list response. `initialize`, `tools/list`, and `tools/call` use JSON-RPC 2.0. The gateway lists permission-approved external MCP tools and native internal tools in one standard catalog, but dispatches them through separate existing execution adapters. It does not provide an SSE stream transport.
 
-- MCP tool catalog: `GET /v1/admin/mcp/tools`
+- MCP tool catalog (admin): `GET /v1/admin/mcp/tools`
 - Upstream endpoint registry: `GET /v1/admin/mcp/endpoints`
-- MCP tool call: `POST /v1/mcp/tools/call`
+- MCP tool call: `POST /mcp` (`tools/call`)
+- REST compatibility call: `POST /v1/mcp/tools/call`
 - Runtime MCP config: `GET /api/config/mcp`
 
-Upstream servers must be configured with their actual URLs, for example `EXTERNAL_MCP_PUBLIC_API_URL`, `EXTERNAL_MCP_TTS_URL`, `EXTERNAL_MCP_OCR_URL`, or `EXTERNAL_MCP_FACEBOOK_ADS_URL`. Keep the MCP HTTP/private-network policy and host allowlist enabled only for the exact trusted endpoint. With those URL variables empty and the local fallback disabled or unavailable, the runtime has **zero registered MCP endpoints and zero discovered MCP tools**; native workspace tools are separate and work without an MCP URL.
+Upstream servers must use their actual URLs, for example `EXTERNAL_MCP_PUBLIC_API_URL` or `EXTERNAL_MCP_OCR_URL`. HTTPS uses Node's default certificate/hostname verification. Plain HTTP and private destinations stay denied without explicit host allowlisting. Browser clients need an exact `MCP_ALLOWED_ORIGINS` entry; wildcard origins are not accepted. With no external endpoint configured, native workspace tools can still appear after an application-scoped permission grant.
+
+## Workspace and Agent Context
+
+The runtime is separate from the editor and does not guess an editor's active folder. Bind a workspace once with the admin token; this creates `.zombiecoder/`, generates a full SSOT only when one does not already exist, and ensures the syllabus and project memory files. Assign it to an application so subsequent requests can omit `projectRoot`:
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:ADMIN_TOKEN" }
+Invoke-RestMethod -Uri 'http://127.0.0.1:3000/api/set-working-dir' -Method Post -Headers $headers -ContentType 'application/json' -Body (@{ applicationId = $app.application.id; directory = (Get-Location).Path } | ConvertTo-Json)
+```
+
+The directory-binding route accepts the admin token, or an application API key from a direct loopback request with no proxy headers; forwarded/public requests cannot expand their filesystem boundary. An application key may bind only its own workspace. Explicit project roots on normal APIs must already be statically configured or approved by this route. Rebinding without `refreshSSOT=true` preserves a manually maintained SSOT; set that flag only to request a full rescan.
+
+Session messages are persisted in the runtime's per-install SQLite database. The model receives at most 10 recent messages, plus up to 6 query-relevant excerpts from previous sessions belonging to the same application and exact workspace. SSOT sections, syllabus entries, and memory notes are separately relevance-ranked and byte-bounded. Full transcripts are not copied into project files; the project `.zombiecoder/agents/memory.json` is for durable project notes.
+
+`ADMIN_UI_ENABLED=false` disables only the optional HTML dashboard. The HTTP APIs, MCP gateway, authentication, and runtime startup do not depend on the admin page being present.
 
 ### Legacy local fallback
 

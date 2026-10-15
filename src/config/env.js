@@ -47,6 +47,7 @@ export const config = {
     path: env('UDS_PATH', './data/runtime.sock')
   },
   adminToken: env('ADMIN_TOKEN', ''),
+  adminUiEnabled: env('ADMIN_UI_ENABLED', 'true') !== 'false',
   localAuthBypass: env('LOCAL_AUTH_BYPASS', 'false') === 'true',
   runtimeSecret: env('RUNTIME_SECRET', ''),
   dataDir: env('DATA_DIR', './data'),
@@ -55,6 +56,7 @@ export const config = {
   allowPlaintextHttp: env('ALLOW_PLAINTEXT_HTTP', 'false') === 'true',
   // Tool execution remains disabled until the local deployment verification loop passes.
   executionMode: ['tools-enabled', 'chat-only'].includes(env('ZOMBIECODER_EXECUTION_MODE', 'chat-only')) ? env('ZOMBIECODER_EXECUTION_MODE', 'chat-only') : 'chat-only',
+  zombieCoderModelsJson: env('ZOMBIECODER_MODELS_JSON', ''),
   ollamaBaseUrl: env('OLLAMA_BASE_URL', 'http://127.0.0.1:11434/v1'),
   providerCatalogSyncUrl: env('PROVIDER_CATALOG_SYNC_URL', ''),
   providerCatalogSyncOnStart: env('PROVIDER_CATALOG_SYNC_ON_START', 'true') === 'true',
@@ -92,12 +94,14 @@ export const config = {
     allowPrivateNetwork: env('MCP_ALLOW_PRIVATE_NETWORK', 'false') === 'true',
     allowHosts: listEnv('MCP_ALLOW_HOSTS'),
   },
+  mcpAllowedOrigins: listEnv('MCP_ALLOWED_ORIGINS'),
   localMcpFallbackEnabled: env('LOCAL_MCP_FALLBACK_ENABLED', 'false') === 'true',
   providerNetworkPolicy: {
     allowPlaintextHttp: env('ALLOW_PLAINTEXT_HTTP', 'false') === 'true',
     allowPrivateNetwork: env('PROVIDER_ALLOW_PRIVATE_NETWORK', 'false') === 'true',
     allowPrivateHosts: listEnv('PROVIDER_ALLOW_PRIVATE_HOSTS'),
     allowHosts: listEnv('PROVIDER_ALLOW_HOSTS'),
+    requestTimeoutMs: numberEnv('PROVIDER_REQUEST_TIMEOUT_MS', 180000, {min:1000,max:600000}),
     maxResponseBytes: numberEnv('MAX_PROVIDER_RESPONSE_BYTES', 4 * 1024 * 1024, {min:1024,max:32 * 1024 * 1024})
   },
   providerApiKeys: Object.fromEntries(Object.entries(process.env)

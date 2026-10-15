@@ -60,6 +60,8 @@ export const LEGACY_COMPATIBILITY_ROUTE_MAP = Object.freeze([
 
 export const CURRENT_ROUTE_MAP = Object.freeze([
   ['GET','/health','runtime health'],
+  ['POST','/api/set-working-dir','admin-approved project workspace binding'],
+  ['GET','/api/version','runtime version compatibility'],
   ['POST','/v1/admin/applications','application provisioning'],
   ['GET','/v1/admin/applications','application listing'],
   ['POST','/v1/admin/applications/{id}/rotate-key','application key rotation'],
@@ -140,6 +142,11 @@ export const CURRENT_ROUTE_MAP = Object.freeze([
   ['GET','/v1/admin/mcp/incomplete','MCP incomplete audit'],
   ['GET','/v1/admin/mcp/audit','MCP audit'],
   ['GET','/v1/admin/mcp/tools','MCP tool catalog'],
+  ['GET','/mcp','application-scoped MCP tool listing'],
+  ['POST','/mcp','streamable HTTP MCP JSON-RPC'],
+  ['OPTIONS','/mcp','MCP browser preflight'],
+  ['POST','/v1/mcp','streamable HTTP MCP JSON-RPC compatibility alias'],
+  ['OPTIONS','/v1/mcp','MCP compatibility browser preflight'],
   ['POST','/v1/mcp/tools/call','MCP tool execution'],
   ['POST','/v1/execution/prepare','execution contract preparation'],
   ['POST','/v1/execution/run','execution'],

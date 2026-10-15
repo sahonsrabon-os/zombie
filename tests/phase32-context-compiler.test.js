@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { compileContext, validateCompiledContext } from '../src/context/compiler.js';
 
 test('phase32 compiler keeps recent messages bounded and selects relevant SSOT/syllabus/memory', () => {
+  const archive=Array.from({length:18},(_,index)=>({role:'user',content:index===4?'Previous Laravel checkout decision: stock is reserved before payment.':index===12?'আগের সিদ্ধান্ত: পেমেন্টের আগে স্টক রিজার্ভ করতে হবে।':`Unrelated archived note ${index}`}));
   const result = compileContext({
-    goal: 'fix Laravel checkout port and working directory',
+    goal: 'fix Laravel checkout port and working directory; স্টক রিজার্ভ সমস্যাটি ঠিক করো',
     recent: Array.from({length: 20}, (_, i) => ({role: i % 2 ? 'assistant' : 'user', content: `message-${i}`})),
+    archive,
     memory: [
       {content:'old unrelated marketing note'},
       {content:'Laravel checkout working directory is /srv/shop/current'},
@@ -16,6 +18,9 @@ test('phase32 compiler keeps recent messages bounded and selects relevant SSOT/s
     projectRoot:'/srv/shop', workingDirectory:'/srv/shop/current', maxBytes: 64 * 1024
   });
   assert.equal(result.recent.length, 10);
+  assert.ok(result.archive.length<=6);
+  assert.ok(result.archive.some(message=>/Laravel checkout decision/.test(message.content)));
+  assert.ok(result.archive.some(message=>/পেমেন্টের আগে স্টক রিজার্ভ/.test(message.content)));
   assert.equal(result.facts.workingDirectory, '/srv/shop/current');
   assert.ok(result.ssot.sections.some(x => /checkout/i.test(x.title)));
   assert.ok(result.syllabus.some(x => /laravel checkout/i.test(x.topic)));

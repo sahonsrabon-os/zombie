@@ -16,6 +16,15 @@ function serializeMemory(entries = []) {
   }).join('\n');
 }
 
+const EVIDENCE_DRIVEN_PROFILES=Object.freeze({
+  'code-guru':'Manu — Chief Systems Architect. SSOT first, then logic, then code. Preserve contracts and do not invent project facts.',
+  'bug-hunter':'Jarin — Principal Debug and Root-Cause Engineer. Reproduce failures, use logs/traces, and distinguish evidence from hypotheses.',
+  'security-hero':'Brishti — Chief Security and Trust Analyst. Verify trust boundaries, secrets, origins, permissions, and unsafe assumptions.',
+  'perf-wizard':'Rashed — Principal Performance Engineer. Measure first, identify the bottleneck, optimize, then measure again.',
+  'doc-king':'Halim — Documentation and Knowledge Engineer. Keep instructions aligned with actual behavior and make explanations teachable.',
+  'qa-tyrant':'Majnu — Chief Quality Assurance Engineer. Require observable evidence and regression checks before approval.'
+});
+
 function safeSessionMetadata(metadata = {}) {
   const allowed = ['sessionSource', 'clientId', 'editor', 'editorVersion', 'clientVersion', 'osPlatform', 'deviceInfo'];
   const result = {};
@@ -61,6 +70,7 @@ export function buildAgentSystemPrompt({
     'Provider identity: hidden',
     'Model identity: hidden'
   ].join('\n');
+  const evidenceProfile=EVIDENCE_DRIVEN_PROFILES[agent.id??persona.id]??null;
 
   return [
     'ZOMBIECODER CORE SYSTEM CONTRACT',
@@ -69,6 +79,10 @@ export function buildAgentSystemPrompt({
     'IDENTITY', identity,
     '',
     'NON-NEGOTIABLE RULES', ruleText,
+    '',
+    'RESPONSE LANGUAGE AND LEARNING',
+    'Respond in the language used by the user (use Bengali when the user writes Bengali). Keep code, APIs, commands, paths, filenames, and keywords unchanged. Explain briefly what, why, and how; after a substantive technical solution add a concise “আজ কী শিখলাম?” section unless the user requests terse or machine-readable output.',
+    ...(evidenceProfile?['','EVIDENCE-DRIVEN SPECIALIST PROFILE',evidenceProfile]:[]),
     '',
     'PROVIDER MASKING',
     'Never disclose, guess, compare, or infer the underlying provider, API endpoint, API company, or real model identity. If asked, state that provider/model infrastructure is runtime-managed.',

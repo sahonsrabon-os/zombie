@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PROVIDER_CAPABILITIES } from '../capabilities.js';
-import { resolveZombieModelAlias } from '../masking/zombie-models.js';
+import { resolveZombieModelAlias, ZOMBIECODER_MODELS } from '../masking/zombie-models.js';
 
 function uniq(values = []) { return [...new Set(values.map(String).filter(Boolean))]; }
 
@@ -30,26 +30,27 @@ function providerSupports(provider, caps) {
 }
 
 export class SmartRouter {
-  constructor({providers, logger=null}={}) { this.providers = providers; this.logger = logger; }
+  constructor({providers, logger=null, models=ZOMBIECODER_MODELS}={}) { this.providers = providers; this.logger = logger; this.models=models; }
 
   async candidates(input = {}) {
     const all = await this.providers.list();
     const caps = requestedCapabilities(input);
     const requestedProvider = String(input.provider ?? '').trim();
     const requestedModel = String(input.model ?? '').trim();
-    const modelAlias = resolveZombieModelAlias(requestedModel);
+    const modelAlias = resolveZombieModelAlias(requestedModel,this.models);
     const candidates = [];
     const legacyPriorities = [...new Set(all.map(p => Number(p.priority)).filter(value => Number.isFinite(value) && value > 10))].sort((a,b)=>a-b);
     const legacyPriorityMap = new Map(legacyPriorities.map((value,index)=>[value,Math.min(10,index+1)]));
 
     for (const provider of all) {
       if (requestedProvider && provider.id !== requestedProvider) continue;
+      if(modelAlias?.providerId&&provider.id!==modelAlias.providerId)continue;
       if (!providerSupports(provider, caps)) continue;
       const models = (Array.isArray(provider.models) ? provider.models : []).filter(model => provider.modelMetadata?.[model]?.enabled !== false).sort((a,b)=>(provider.modelMetadata?.[a]?.priority ?? 100)-(provider.modelMetadata?.[b]?.priority ?? 100));
       let targetModel = requestedModel;
       if (modelAlias) {
         const aliasMap = provider.modelAliases && typeof provider.modelAliases === 'object' ? provider.modelAliases : {};
-        targetModel = aliasMap[modelAlias.id] ?? aliasMap[modelAlias.id.replaceAll('-', '_')] ?? provider.defaultModel ?? models[0] ?? '';
+        targetModel = modelAlias.model ?? aliasMap[modelAlias.id] ?? aliasMap[modelAlias.id.replaceAll('-', '_')] ?? provider.defaultModel ?? models[0] ?? '';
         if (!targetModel || /^REPLACE_WITH_/i.test(String(targetModel))) continue;
         if (models.length && !models.includes(targetModel)) continue;
       } else if (requestedModel && models.length && !models.includes(requestedModel) && provider.defaultModel !== requestedModel) continue;
